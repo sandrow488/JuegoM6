@@ -7,7 +7,7 @@ export function useThreeGame(canvasRef) {
   // Estado para Vue (HUD)
   const score = ref(0)
   const best = ref(Number(localStorage.getItem('bestScore') ?? 0))
-  const speed = ref(7) // unidades/segundo
+  const speed = ref(10) // VELOCIDAD INICIAL AUMENTADA (Antes era 7)
   const isGameOver = ref(false)
 
   // Three.js
@@ -35,8 +35,8 @@ export function useThreeGame(canvasRef) {
   const PLAYER_Z = 0
 
   // Física simple salto
-  const GRAVITY = -20
-  const JUMP_V = 9.5
+  const GRAVITY = -25 // GRAVEDAD MÁS PESADA PARA CAER RÁPIDO
+  const JUMP_V = 11 // SALTO MÁS FUERTE PARA COMPENSAR
 
   // Colisiones
   const playerBox = new THREE.Box3()
@@ -80,7 +80,7 @@ export function useThreeGame(canvasRef) {
     ground.receiveShadow = true
     scene.add(ground)
 
-    // Líneas laterales (visual)
+    // Líneas laterales
     const railGeo = new THREE.BoxGeometry(0.15, 0.4, 80)
     const railMat = new THREE.MeshStandardMaterial({ color: 0x5a5aff, roughness: 0.6 })
     const leftRail = new THREE.Mesh(railGeo, railMat)
@@ -99,7 +99,6 @@ export function useThreeGame(canvasRef) {
 
     clock = new THREE.Clock()
 
-    // Eventos
     window.addEventListener('resize', onResize)
     window.addEventListener('keydown', onKeyDown)
     window.addEventListener('keyup', onKeyUp)
@@ -117,7 +116,6 @@ export function useThreeGame(canvasRef) {
 
   function onKeyDown(e) {
     keys.add(e.code)
-
     if (e.code === 'ArrowLeft' || e.code === 'KeyA') moveLane(-1)
     if (e.code === 'ArrowRight' || e.code === 'KeyD') moveLane(1)
     if (e.code === 'Space') jump()
@@ -148,18 +146,14 @@ export function useThreeGame(canvasRef) {
     o.position.z = SPAWN_Z
     o.position.x = LANES[Math.floor(Math.random() * LANES.length)]
     o.position.y = 0.45
-    if (speed.value >= 10) {
-    }
     obstacles.push(o)
     scene.add(o)
   }
 
   function updatePlayer(dt) {
-    // Suavizado lateral hacia el carril objetivo
     const targetX = player.userData.targetX
-    player.position.x = THREE.MathUtils.damp(player.position.x, targetX, 12, dt)
+    player.position.x = THREE.MathUtils.damp(player.position.x, targetX, 15, dt) // MOVIMIENTO LATERAL MÁS RÁPIDO
 
-    // Salto simple
     if (player.userData.isJumping) {
       player.userData.vy += GRAVITY * dt
       player.position.y += player.userData.vy * dt
@@ -173,18 +167,17 @@ export function useThreeGame(canvasRef) {
   }
 
   function updateWorld(dt) {
-    // Aumenta dificultad progresiva
-    speed.value = Math.min(50, speed.value + dt * 0.25)
+    // ACELERACIÓN MÁS AGRESIVA: Aumenta la velocidad el doble de rápido (0.5 en lugar de 0.25)
+    speed.value = Math.min(80, speed.value + dt * 0.5)
 
-    // Spawn con timers (ajusta la frecuencia)
     obstacleTimer += dt
 
-    if (obstacleTimer >= 0.9) {
+    // FRECUENCIA DE OBSTÁCULOS: Aparece uno cada 0.4 segundos (Antes era cada 0.9)
+    if (obstacleTimer >= 0.4) {
       obstacleTimer = 0
       spawnObstacle()
     }
 
-    // Mover obstáculos/monedas hacia el jugador
     const dz = speed.value * dt
 
     for (let i = obstacles.length - 1; i >= 0; i--) {
@@ -196,16 +189,12 @@ export function useThreeGame(canvasRef) {
       }
     }
 
-    // “Efecto movimiento” del suelo (opcional sencillo): moverlo y reciclar
     ground.position.z += dz
     if (ground.position.z > 0) ground.position.z = -20
   }
 
   function checkCollisions() {
-    // Caja del jugador
     playerBox.setFromObject(player)
-
-    // Obstáculos
     for (let i = 0; i < obstacles.length; i++) {
       tempBox.setFromObject(obstacles[i])
       if (playerBox.intersectsBox(tempBox)) {
@@ -224,22 +213,18 @@ export function useThreeGame(canvasRef) {
   }
 
   function updateScore(dt) {
-    // Score por tiempo (además de monedas)
-    score.value += Math.floor(dt * 10)
+    score.value += Math.floor(dt * 20) // PUNTUACIÓN SUBE MÁS RÁPIDO
   }
 
   function animate() {
     animationId = requestAnimationFrame(animate)
-
     const dt = clock.getDelta()
-
     if (!isGameOver.value) {
       updatePlayer(dt)
       updateWorld(dt)
       checkCollisions()
       updateScore(dt)
     }
-
     renderer.render(scene, camera)
   }
 
@@ -250,20 +235,14 @@ export function useThreeGame(canvasRef) {
 
   function resetGame() {
     score.value = 0
-    speed.value = 7
+    speed.value = 10
     isGameOver.value = false
-
     clearEntities()
-
-    // Reset jugador
     player.position.set(0, 0.45, PLAYER_Z)
     player.userData.targetX = 0
     player.userData.isJumping = false
     player.userData.vy = 0
-
-    // Reset suelo
     ground.position.z = -20
-
     obstacleTimer = 0
   }
 
@@ -276,12 +255,9 @@ export function useThreeGame(canvasRef) {
   function stop() {
     if (animationId) cancelAnimationFrame(animationId)
     animationId = null
-
     window.removeEventListener('resize', onResize)
     window.removeEventListener('keydown', onKeyDown)
     window.removeEventListener('keyup', onKeyUp)
-
-    // Limpieza básica
     if (renderer) {
       renderer.dispose()
       renderer = null
